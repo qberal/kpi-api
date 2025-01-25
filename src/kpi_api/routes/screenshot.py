@@ -1,13 +1,11 @@
 """
 Ce module contient les routes permettant de capturer des screenshots de la page d'accueil de GitLab.
 """
-
-import io
+import base64
 
 import cv2
 import numpy as np
 from playwright.async_api import async_playwright
-from starlette.responses import StreamingResponse
 
 from kpi_api.utils.config import GITLAB_KNOWN_SIGN_IN, GITLAB_SESSION
 
@@ -62,9 +60,7 @@ async def screenshot_issue_board():
     screenshot = screenshot[:, 30:]
     _, screenshot_buffer = cv2.imencode(".png", screenshot)
 
-    # Retourner le screenshot comme réponse
-    return StreamingResponse(
-        io.BytesIO(screenshot_buffer),
-        media_type="image/png",
-        headers={"Content-Disposition": "inline; filename=issue_board.png"}
-    )
+    # Convertir en base64 au lieu de StreamingResponse
+    base64_image = base64.b64encode(screenshot_buffer).decode("utf-8")
+
+    return {"screenshot": f"data:image/png;base64,{base64_image}"}
