@@ -1,0 +1,132 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_KPI-API",
+      "label": "kpi-api",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "yesoreyeram-infinity-datasource",
+      "pluginName": "Infinity"
+    }
+  ],
+  "__elements": {},
+  "__requires": [
+    {
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "11.4.0"
+    },
+    {
+      "type": "panel",
+      "id": "volkovlabs-image-panel",
+      "name": "Business Media",
+      "version": "6.2.0"
+    },
+    {
+      "type": "datasource",
+      "id": "yesoreyeram-infinity-datasource",
+      "name": "Infinity",
+      "version": "2.12.2"
+    }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "${DS_KPI-API}"
+      },
+      "gridPos": {
+        "h": 23,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "autoPlay": true,
+        "autoPlayInfinity": false,
+        "buttons": [],
+        "controls": true,
+        "height": 0,
+        "heightMode": "original",
+        "infinityPlay": false,
+        "mediaSources": [
+          {
+            "field": "screenshot",
+            "id": "0991e59a-33a2-4f79-9356-2e3b2bc39623",
+            "refId": "A",
+            "type": "image"
+          }
+        ],
+        "noResultsMessage": "Nothing to display...",
+        "pdfToolbar": true,
+        "scale": "auto",
+        "toolbar": true,
+        "width": 0,
+        "widthMode": "auto",
+        "zoomType": "default"
+      },
+      "pluginVersion": "6.2.0",
+      "targets": [
+        {
+          "columns": [],
+          "filters": [],
+          "format": "table",
+          "global_query_id": "",
+          "refId": "A",
+          "root_selector": "",
+          "source": "url",
+          "type": "json",
+          "url": "gitlab/screenshot",
+          "url_options": {
+            "data": "",
+            "method": "GET"
+          },
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "${DS_KPI-API}"
+          }
+        }
+      ],
+      "transparent": true,
+      "type": "volkovlabs-image-panel"
+    }
+  ],
+  "schemaVersion": 40,
+  "tags": [],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Issue board",
+  "uid": "deb01sgnfuhogb",
+  "version": 9,
+  "weekStart": ""
+}
