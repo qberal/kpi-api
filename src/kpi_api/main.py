@@ -108,6 +108,37 @@ async def kimai_hours(
         print(f"ERREUR FINALE: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/kimai/detailed_hours")
+async def kimai_hours(
+        created_after: str = Query(..., example="2023-10-01T00:00:00"),
+        created_before: str = Query(..., example="2023-10-31T23:59:59")
+):
+    try:
+
+        clean_from = created_after.replace('Z', '')
+        clean_to = created_before.replace('Z', '')
+        data = kimai.get_all_users_hours_by_activity(clean_from, clean_to)
+        return {"kimai_hours": data}
+    except Exception as e:
+        print(f"ERREUR FINALE: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/kimai/detailed_hours")
+async def kimai_hours(
+        created_after: str = Query(..., example="2023-10-01T00:00:00"),
+        created_before: str = Query(..., example="2023-10-31T23:59:59"),
+        user_id: int = Query(..., example="1")
+):
+    try:
+
+        clean_from = created_after.replace('Z', '')
+        clean_to = created_before.replace('Z', '')
+        data = kimai.get_user_hours_by_activity(clean_from, clean_to,user_id)
+        return {"kimai_hours": data}
+    except Exception as e:
+        print(f"ERREUR FINALE: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/kimai/current_week")
 async def kimai_current_week():
@@ -178,6 +209,43 @@ async def get_screenshot():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur lors de la capture du screenshot : {e}")
 
+
+@app.get("/gitlab/late_summary")
+async def get_late_summary(
+        group_path: str = Query(..., description="Path du groupe GitLab"),
+        created_after: str = Query(..., description="Date ISO pour filtrer les issues"),
+        created_before: str = Query(..., description="Date ISO pour filtrer les issues")
+):
+    try:
+        return await gitlab.fetch_late_issues_summary(group_path, created_after, created_before)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/gitlab/crah")
+async def get_crah(
+        group_path: str = Query(..., description="Path du groupe GitLab"),
+        created_after: str = Query(..., description="Date ISO pour filtrer les issues"),
+        created_before: str = Query(..., description="Date ISO pour filtrer les issues")
+):
+
+    try:
+        return await gitlab.weekly_activity_report(group_path, created_after, created_before)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/gitlab/crah_by_user")
+async def get_crah(
+        group_path: str = Query(..., description="Path du groupe GitLab"),
+        created_after: str = Query(..., description="Date ISO pour filtrer les issues"),
+        created_before: str = Query(..., description="Date ISO pour filtrer les issues"),
+        username: str = Query(..., description="Nom d'utilisateur GitLab")
+):
+
+    try:
+        return await gitlab.weekly_activity_report_by_user(group_path, created_after, created_before,username)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/calendar/full")
 async def get_cal():

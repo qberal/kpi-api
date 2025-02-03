@@ -5,6 +5,8 @@ Fonctions pour récupérer et traiter les données de l'API GitLab.
 from collections import defaultdict
 from datetime import datetime, timedelta
 
+import pytz
+
 from kpi_api.utils.pagination import fetch_gitlab_paginated_data
 
 
@@ -566,3 +568,290 @@ async def fetch_open_issues_count_by_user(group_path: str, created_after: str, c
             issues_by_user[user] += 1
 
     return [{"user": user, "count": count} for user, count in issues_by_user.items()]
+
+
+async def fetch_late_issues_summary(group_path: str, created_after: str, created_before: str) -> dict:
+    """
+    Récupère le nombre total d'issues et celles en retard
+    dans une plage de dates donnée.
+    """
+    query = """
+    query issuesSummary($groupPath: ID!, $createdAfter: Time, $createdBefore: Time, $after: String) {
+      group(fullPath: $groupPath) {
+        issues(createdAfter: $createdAfter, createdBefore: $createdBefore, first: 100, after: $after) {
+          nodes {
+            state
+            dueDate
+            closedAt
+          }
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
+        }
+      }
+    }
+    """
+
+    variables = {
+        "groupPath": group_path,
+        "createdAfter": created_after,
+        "createdBefore": created_before,
+    }
+    issues = await fetch_gitlab_paginated_data(query, variables, key_path=["data", "group", "issues"])
+
+    total = len(issues)
+    late = 0
+
+    # Définir le fuseau horaire UTC
+    utc = pytz.utc
+    current_date = datetime.utcnow().replace(tzinfo=utc)  # Normaliser en UTC
+
+    for issue in issues:
+        due_date = issue.get("dueDate")
+        closed_at = issue.get("closedAt")
+        state = issue.get("state")
+
+        if due_date:
+            # Convertir dueDate en objet datetime avec fuseau horaire UTC
+            due_date = datetime.fromisoformat(due_date)
+            if due_date.tzinfo is None:  # Ajouter UTC si due_date est naïve
+                due_date = due_date.replace(tzinfo=utc)
+
+            # Critère 1 : Non fermée et dueDate < aujourd'hui
+            if state != "closed" and due_date < current_date:
+                late += 1
+
+            # Critère 2 : Fermée mais dueDate < closedAt
+            elif state == "closed" and closed_at:
+                closed_at = datetime.fromisoformat(closed_at)
+                if closed_at.tzinfo is None:  # Ajouter UTC si closed_at est naïve
+                    closed_at = closed_at.replace(tzinfo=utc)
+                if due_date < closed_at:
+                    late += 1
+
+    return {
+        "late": late/total*100,
+        "not late": (total-late)/total*100
+    }
+
+
+def format_duration(seconds: int) -> str:
+    """
+    Convertit un nombre de secondes en une chaîne au format 'xxhxxmin'.
+    """
+    hours = seconds // 3600
+    minutes = (seconds % 3600) // 60
+    return f"{hours}h{minutes:02d}min"
+
+
+async def weekly_activity_report(group_path: str, created_after: str, created_before: str) -> dict:
+    """
+    Génère un compte rendu d'activité hebdomadaire, regroupé par personne.
+
+    Pour chaque issue créée entre 'created_after' et 'created_before', la fonction récupère :
+      - l'iid de l'issue (identifiant visible)
+      - le titre de l'issue (nom issue)
+      - le tag WP : si un label commence par "WP::", la valeur après "WP::" est extraite, sinon vide.
+      - pour chaque utilisateur, le temps passé total (la somme des timelogs de cet utilisateur)
+      - le temps restant estimé (timeEstimate - somme de tous les timelogs de l'issue)
+
+    Seules les entrées pour lesquelles le temps passé par l'utilisateur est > 0 sont incluses.
+    Le temps est formaté au format 'xxhxxmin'.
+
+    :param group_path: Chemin complet du groupe GitLab.
+    :param created_after: Date de début (format ISO) de la période.
+    :param created_before: Date de fin (format ISO) de la période.
+    :return: Un dictionnaire dont les clés sont les noms d'utilisateurs et les valeurs sont
+             des listes de dictionnaires correspondant aux issues.
+    """
+    query = """
+    query weeklyActivityReport($groupPath: ID!, $createdAfter: Time, $createdBefore: Time, $after: String) {
+      group(fullPath: $groupPath) {
+        issues(createdAfter: $createdAfter, createdBefore: $createdBefore, first: 100, after: $after) {
+          nodes {
+            iid
+            title
+            timeEstimate
+            labels(first: 10) {
+              nodes {
+                title
+              }
+            }
+            timelogs(first: 100) {
+              nodes {
+                timeSpent
+                user {
+                  name
+                }
+              }
+            }
+          }
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
+        }
+      }
+    }
+    """
+
+    variables = {
+        "groupPath": group_path,
+        "createdAfter": created_after,
+        "createdBefore": created_before
+    }
+
+    # Récupération paginée des issues via la fonction utilitaire
+    issues = await fetch_gitlab_paginated_data(query, variables, key_path=["data", "group", "issues"])
+
+    # Dictionnaire pour regrouper les informations par utilisateur
+    report_by_user = defaultdict(list)
+
+    for issue in issues:
+        issue_iid = issue.get("iid")
+        issue_title = issue.get("title")
+        time_estimate = issue.get("timeEstimate") or 0
+
+        # Extraction du tag WP
+        wp = ""
+        labels = issue.get("labels", {}).get("nodes", [])
+        for label in labels:
+            label_title = label.get("title", "")
+            if label_title.startswith("WP::"):
+                # Récupère ce qui suit "WP::" et supprime d'éventuels espaces
+                wp = label_title.split("WP::", 1)[1].strip()
+                break
+
+        # Calcul du temps total passé sur l'issue (tous utilisateurs confondus)
+        timelogs = issue.get("timelogs", {}).get("nodes", [])
+        total_time_spent_issue = sum(tl.get("timeSpent", 0) for tl in timelogs)
+        # Calcul du temps restant estimé (pour l'issue)
+        remaining = time_estimate - total_time_spent_issue
+        if remaining < 0:
+            remaining = 0
+
+        # Regroupement des timelogs par utilisateur pour cette issue
+        user_time = defaultdict(int)
+        for tl in timelogs:
+            user = tl.get("user", {}).get("name")
+            if user:
+                user_time[user] += tl.get("timeSpent", 0)
+
+        # Pour chaque utilisateur ayant logué du temps (> 0), on ajoute une entrée dans le rapport
+        for user, user_time_spent in user_time.items():
+            if user_time_spent > 0:
+                report_by_user[user].append({
+                    "iid": issue_iid,
+                    "nom issue": issue_title,
+                    "WP": wp,
+                    "temps passé total": format_duration(user_time_spent),
+                    "temps restant estimé": format_duration(remaining)
+                })
+
+    return dict(report_by_user)
+
+async def weekly_activity_report_by_user(group_path: str, created_after: str, created_before: str, target_username: str) -> dict:
+    """
+    Génère un compte rendu d'activité hebdomadaire pour un utilisateur spécifique (filtré par son nom GitLab).
+
+    Pour chaque issue créée entre 'created_after' et 'created_before', la fonction récupère :
+      - l'iid de l'issue (identifiant visible)
+      - le titre de l'issue (nom issue)
+      - le tag WP : si un label commence par "WP::", la valeur après "WP::" est extraite, sinon vide.
+      - pour l'utilisateur ciblé, le temps passé total (la somme des timelogs de cet utilisateur)
+      - le temps restant estimé (timeEstimate - somme de tous les timelogs de l'issue)
+
+    Seules les issues pour lesquelles le temps passé par l'utilisateur ciblé est > 0 sont incluses.
+    Le temps est formaté au format 'xxhxxmin'.
+
+    :param group_path: Chemin complet du groupe GitLab.
+    :param created_after: Date de début (format ISO) de la période.
+    :param created_before: Date de fin (format ISO) de la période.
+    :param target_username: Nom d'utilisateur GitLab à filtrer (celui dont on souhaite le rapport).
+    :return: Un dictionnaire avec pour clé le nom de l'utilisateur et la valeur une liste de dictionnaires
+             correspondant aux issues.
+    """
+    query = """
+    query weeklyActivityReport($groupPath: ID!, $createdAfter: Time, $createdBefore: Time, $after: String) {
+      group(fullPath: $groupPath) {
+        issues(createdAfter: $createdAfter, createdBefore: $createdBefore, first: 100, after: $after) {
+          nodes {
+            iid
+            title
+            timeEstimate
+            labels(first: 10) {
+              nodes {
+                title
+              }
+            }
+            timelogs(first: 100) {
+              nodes {
+                timeSpent
+                user {
+                  name
+                }
+              }
+            }
+          }
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
+        }
+      }
+    }
+    """
+    variables = {
+        "groupPath": group_path,
+        "createdAfter": created_after,
+        "createdBefore": created_before
+    }
+
+    # Récupération paginée des issues via la fonction utilitaire
+    issues = await fetch_gitlab_paginated_data(query, variables, key_path=["data", "group", "issues"])
+
+    # Liste qui contiendra les issues concernées pour l'utilisateur ciblé
+    report_for_user = []
+
+    for issue in issues:
+        issue_iid = issue.get("iid")
+        issue_title = issue.get("title")
+        time_estimate = issue.get("timeEstimate") or 0
+
+        # Extraction du tag WP (si présent)
+        wp = ""
+        labels = issue.get("labels", {}).get("nodes", [])
+        for label in labels:
+            label_title = label.get("title", "")
+            if label_title.startswith("WP::"):
+                wp = label_title.split("WP::", 1)[1].strip()
+                break
+
+        # Traitement des timelogs : on ne conserve que ceux correspondant à target_username
+        timelogs = issue.get("timelogs", {}).get("nodes", [])
+        user_time_spent = 0
+        for tl in timelogs:
+            # On compare en supprimant les espaces superflus et en passant en minuscules
+            tl_user = tl.get("user", {}).get("name", "")
+            if tl_user.strip().lower() == target_username.strip().lower():
+                user_time_spent += tl.get("timeSpent", 0)
+
+        # Si l'utilisateur a logué du temps sur l'issue, on l'ajoute au rapport
+        if user_time_spent > 0:
+            # Pour le calcul du temps restant, on prend en compte le temps passé par tous les utilisateurs
+            total_time_spent_issue = sum(tl.get("timeSpent", 0) for tl in timelogs)
+            remaining = time_estimate - total_time_spent_issue
+            if remaining < 0:
+                remaining = 0
+
+            report_for_user.append({
+                "iid": issue_iid,
+                "nom issue": issue_title,
+                "WP": wp,
+                "temps passé total": format_duration(user_time_spent),
+                "temps restant estimé": format_duration(remaining)
+            })
+
+    # Retourne un dictionnaire dont la clé est le nom de l'utilisateur ciblé
+    return {target_username: report_for_user}
