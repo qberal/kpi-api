@@ -906,27 +906,30 @@ async def get_parent_issue(project_id: int, parent_iid: int) -> dict:
     return {}
 
 
-async def weekly_activity_report_by_user(group_path: str, created_after: str, created_before: str, target_username: str) -> dict:
-    """
-    Génère un rapport d'activité hebdomadaire pour un utilisateur.
 
-    - Récupère les discussions pour identifier le parent d'une tâche (`TASK`).
-    - Utilise une requête GraphQL auxiliaire pour récupérer l'issue parente avec `project_id` et `iid`.
-    - Récupère le label WP du parent si l'issue est une tâche.
-    - Formatage correct :
-        - ID : "parent_iid#task_iid"
-        - Titre : "parent_title : task_title"
+async def weekly_activity_report_by_user(group_path: str, week_start: str, week_end: str, target_username: str) -> dict:
+    """
+    Génère un rapport d'activité hebdomadaire pour un utilisateur en se basant sur la date du timelog (spentAt)
+    plutôt que sur la date de création des issues.
+
+    Pour chaque issue, pour chaque timelog :
+      - On vérifie si la date du timelog (spentAt) se situe dans la plage [week_start, week_end].
+      - Si c'est le cas et que le timelog appartient à target_username, on additionne le temps passé.
+      - Pour l'issue, on calcule le temps restant estimé (timeEstimate - somme de tous les timelogs).
+
+    De plus, si l'issue est de type TASK, on vérifie la présence d'un parent pour formater l'affichage.
 
     :param group_path: Chemin GitLab (ex: 'iti/pic/25/chb').
-    :param created_after: Date de début (format ISO).
-    :param created_before: Date de fin (format ISO).
+    :param week_start: Date de début (format ISO) pour filtrer les timelogs (spentAt).
+    :param week_end: Date de fin (format ISO) pour filtrer les timelogs (spentAt).
     :param target_username: Nom d'utilisateur GitLab.
     :return: Un dictionnaire structuré par utilisateur.
     """
+    # La requête ne filtre plus sur la date de création de l'issue
     query = """
-    query weeklyActivityReport($groupPath: ID!, $createdAfter: Time, $createdBefore: Time, $after: String) {
+    query weeklyActivityReport($groupPath: ID!, $after: String) {
       group(fullPath: $groupPath) {
-        issues(createdAfter: $createdAfter, createdBefore: $createdBefore, first: 100, after: $after) {
+        issues(first: 100, after: $after) {
           nodes {
             iid
             title
@@ -966,24 +969,26 @@ async def weekly_activity_report_by_user(group_path: str, created_after: str, cr
     }
     """
     variables = {
-        "groupPath": group_path,
-        "createdAfter": created_after,
-        "createdBefore": created_before
+        "groupPath": group_path
     }
 
-    # 🔹 Étape 1 : Récupération des issues et des tâches
+    # Récupération paginée des issues
     issues = await fetch_gitlab_paginated_data(query, variables, key_path=["data", "group", "issues"])
+
+    # Conversion des bornes de la période en objets datetime
+    week_start_dt = datetime.fromisoformat(week_start)
+    week_end_dt = datetime.fromisoformat(week_end)
 
     report_for_user = []
 
     for issue in issues:
         issue_iid = issue.get("iid")
         issue_title = issue.get("title")
-        issue_type = issue.get("type")  # Vérifier si c'est une TASK
-        project_id = issue.get("projectId")  # Identifier le projet
+        issue_type = issue.get("type")  # Pour vérifier si c'est une TASK
+        project_id = issue.get("projectId")
         time_estimate = issue.get("timeEstimate") or 0
 
-        # Extraction du tag WP
+        # Extraction du tag WP (Work Package)
         wp = ""
         labels = issue.get("labels", {}).get("nodes", [])
         for label in labels:
@@ -1000,15 +1005,24 @@ async def weekly_activity_report_by_user(group_path: str, created_after: str, cr
             time_spent = tl.get("timeSpent", 0)
             total_time_spent_issue += time_spent
             tl_user = tl.get("user", {}).get("name", "")
-            if tl_user.strip().lower() == target_username.strip().lower():
-                user_time_spent += time_spent
+            spent_at = tl.get("spentAt")
+            if spent_at:
+                try:
+                    tl_date = datetime.fromisoformat(spent_at)
+                except ValueError:
+                    continue
+                # Vérifier si le timelog se situe dans la plage définie par week_start et week_end
+                if week_start_dt <= tl_date <= week_end_dt:
+                    if tl_user.strip().lower() == target_username.strip().lower():
+                        user_time_spent += time_spent
 
+        # On ajoute l'issue au rapport uniquement si l'utilisateur a logué du temps dans la période
         if user_time_spent > 0:
             parent_iid = None
             parent_title = None
             parent_wp = None
 
-            # 🔹 Étape 2 : Vérifier si l’issue est une tâche avec un parent
+            # Si l'issue est une TASK, vérifier la présence d'un parent
             if issue_type == "TASK":
                 discussions = issue.get("discussions", {}).get("nodes", [])
                 if discussions:
@@ -1018,18 +1032,17 @@ async def weekly_activity_report_by_user(group_path: str, created_after: str, cr
                         match = re.search(r"added #(\d+) as parent issue", first_note)
                         if match:
                             parent_iid = match.group(1)
-
-                            # 🔹 Étape 3 : Récupérer l'issue parente via GraphQL
+                            # Récupération de l'issue parente via une requête GraphQL auxiliaire
                             parent_issue = await get_parent_issue(project_id, parent_iid)
                             if parent_issue:
                                 parent_title = parent_issue.get("title")
                                 parent_wp = parent_issue.get("wp")
 
-            # 🔹 Étape 4 : Formater l'affichage
+            # Formater l'affichage selon la présence éventuelle d'un parent
             if parent_iid and parent_title:
                 display_iid = f"{parent_iid}#{issue_iid}"
                 display_title = f"{parent_title} : {issue_title}"
-                wp = parent_wp if parent_wp else wp  # Prendre le WP du parent si disponible
+                wp = parent_wp if parent_wp else wp
             else:
                 display_iid = issue_iid
                 display_title = issue_title
