@@ -7,7 +7,9 @@ import requests
 from kpi_api.utils.config import ACCESS_TOKEN, GITLAB_URL
 
 
-async def fetch_gitlab_paginated_data(query: str, variables: dict, key_path: list) -> list:
+async def fetch_gitlab_paginated_data(
+    query: str, variables: dict, key_path: list
+) -> list:
     """
     Gère la pagination pour les requêtes GraphQL.
 
@@ -26,7 +28,9 @@ async def fetch_gitlab_paginated_data(query: str, variables: dict, key_path: lis
 
     while has_next_page:
         variables["after"] = end_cursor
-        response = requests.post(GITLAB_URL, json={"query": query, "variables": variables}, headers=headers)
+        response = requests.post(
+            GITLAB_URL, json={"query": query, "variables": variables}, headers=headers
+        )
         response.raise_for_status()
 
         # Extraire les données selon le chemin spécifié

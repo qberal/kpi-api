@@ -8,7 +8,11 @@ import pytz
 from caldav import DAVClient
 from dateutil.rrule import rruleset, rrulestr
 
-from kpi_api.utils.config import NEXTCLOUD_CALDAV_URL, NEXTCLOUD_USERNAME, NEXTCLOUD_PASSWORD
+from kpi_api.utils.config import (
+    NEXTCLOUD_CALDAV_URL,
+    NEXTCLOUD_USERNAME,
+    NEXTCLOUD_PASSWORD,
+)
 
 
 def get_nextcloud_events():
@@ -18,7 +22,9 @@ def get_nextcloud_events():
     :return: Liste d'événements sous forme de dictionnaires
     """
 
-    client = DAVClient(NEXTCLOUD_CALDAV_URL, username=NEXTCLOUD_USERNAME, password=NEXTCLOUD_PASSWORD)
+    client = DAVClient(
+        NEXTCLOUD_CALDAV_URL, username=NEXTCLOUD_USERNAME, password=NEXTCLOUD_PASSWORD
+    )
     principal = client.principal()
     calendars = principal.calendars()
 
@@ -42,37 +48,50 @@ def get_nextcloud_events():
         for event in calendar.events():
             vevent = event.vobject_instance.vevent
             event_start = vevent.dtstart.value
-            event_end = vevent.dtend.value if hasattr(vevent, 'dtend') else None
-            name = vevent.summary.value if hasattr(vevent, 'summary') else ""
-            description = vevent.description.value if hasattr(vevent, 'description') else ""
-            location = vevent.location.value if hasattr(vevent, 'location') else ""
+            event_end = vevent.dtend.value if hasattr(vevent, "dtend") else None
+            name = vevent.summary.value if hasattr(vevent, "summary") else ""
+            description = (
+                vevent.description.value if hasattr(vevent, "description") else ""
+            )
+            location = vevent.location.value if hasattr(vevent, "location") else ""
 
             # Gestion des événements récurrents
-            if hasattr(vevent, 'rrule'):
+            if hasattr(vevent, "rrule"):
                 rrule = rrulestr(vevent.rrule.value, dtstart=vevent.dtstart.value)
                 rrule_set = rruleset()
                 rrule_set.rrule(rrule)
 
                 occurrences = rrule_set.between(week_start, week_end, inc=True)
                 for occurrence in occurrences:
-                    events_list.append({
-                        "event_start": occurrence.isoformat(),
-                        "event_end": (occurrence + (event_end - event_start)).isoformat() if event_end else None,
-                        "name": name,
-                        "description": description,
-                        "location": location,
-                        "color": color
-                    })
+                    events_list.append(
+                        {
+                            "event_start": occurrence.isoformat(),
+                            "event_end": (
+                                (occurrence + (event_end - event_start)).isoformat()
+                                if event_end
+                                else None
+                            ),
+                            "name": name,
+                            "description": description,
+                            "location": location,
+                            "color": color,
+                        }
+                    )
             else:
-                if isinstance(event_start, datetime) and week_start <= event_start < week_end:
-                    events_list.append({
-                        "event_start": event_start.isoformat(),
-                        "event_end": event_end.isoformat() if event_end else None,
-                        "name": name,
-                        "description": description,
-                        "location": location,
-                        "color": color
-                    })
+                if (
+                    isinstance(event_start, datetime)
+                    and week_start <= event_start < week_end
+                ):
+                    events_list.append(
+                        {
+                            "event_start": event_start.isoformat(),
+                            "event_end": event_end.isoformat() if event_end else None,
+                            "name": name,
+                            "description": description,
+                            "location": location,
+                            "color": color,
+                        }
+                    )
 
     return events_list
 
@@ -81,7 +100,9 @@ def get_next_event(calendar_name):
     """
     Récupère le prochain événement à venir strictement après l'heure actuelle.
     """
-    client = DAVClient(NEXTCLOUD_CALDAV_URL, username=NEXTCLOUD_USERNAME, password=NEXTCLOUD_PASSWORD)
+    client = DAVClient(
+        NEXTCLOUD_CALDAV_URL, username=NEXTCLOUD_USERNAME, password=NEXTCLOUD_PASSWORD
+    )
     principal = client.principal()
     calendars = principal.calendars()
 
@@ -98,17 +119,19 @@ def get_next_event(calendar_name):
         for event in calendar.events():
             vevent = event.vobject_instance.vevent
             event_start = vevent.dtstart.value
-            event_end = vevent.dtend.value if hasattr(vevent, 'dtend') else None
-            name = vevent.summary.value if hasattr(vevent, 'summary') else ""
-            description = vevent.description.value if hasattr(vevent, 'description') else ""
-            location = vevent.location.value if hasattr(vevent, 'location') else ""
+            event_end = vevent.dtend.value if hasattr(vevent, "dtend") else None
+            name = vevent.summary.value if hasattr(vevent, "summary") else ""
+            description = (
+                vevent.description.value if hasattr(vevent, "description") else ""
+            )
+            location = vevent.location.value if hasattr(vevent, "location") else ""
 
             # Conversion des dates all-day en datetime
             if isinstance(event_start, date) and not isinstance(event_start, datetime):
                 event_start = datetime.combine(event_start, time.min, tzinfo=pytz.UTC)
 
             # Gestion des événements récurrents
-            if hasattr(vevent, 'rrule'):
+            if hasattr(vevent, "rrule"):
                 rrule = rrulestr(vevent.rrule.value, dtstart=event_start)
 
                 # Prochaine occurrence strictement après maintenant
@@ -129,26 +152,36 @@ def get_next_event(calendar_name):
 
                     # Calcul de la fin de l'événement
                     duration = event_end - event_start if event_end else None
-                    event_end_occurrence = next_occurrence + duration if duration else None
+                    event_end_occurrence = (
+                        next_occurrence + duration if duration else None
+                    )
 
-                    events_list.append({
-                        "event_start": next_occurrence.isoformat(),
-                        "event_end": event_end_occurrence.isoformat() if event_end_occurrence else None,
-                        "name": name,
-                        "description": description,
-                        "location": location
-                    })
+                    events_list.append(
+                        {
+                            "event_start": next_occurrence.isoformat(),
+                            "event_end": (
+                                event_end_occurrence.isoformat()
+                                if event_end_occurrence
+                                else None
+                            ),
+                            "name": name,
+                            "description": description,
+                            "location": location,
+                        }
+                    )
 
             # Événements non récurrents
             else:
                 if isinstance(event_start, datetime) and event_start > now:
-                    events_list.append({
-                        "event_start": event_start.isoformat(),
-                        "event_end": event_end.isoformat() if event_end else None,
-                        "name": name,
-                        "description": description,
-                        "location": location
-                    })
+                    events_list.append(
+                        {
+                            "event_start": event_start.isoformat(),
+                            "event_end": event_end.isoformat() if event_end else None,
+                            "name": name,
+                            "description": description,
+                            "location": location,
+                        }
+                    )
 
     if not events_list:
         return {}

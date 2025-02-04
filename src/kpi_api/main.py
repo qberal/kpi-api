@@ -19,8 +19,8 @@ async def root():
 
 @app.get("/metrics/time_spent")
 async def time_spent(
-        group_path: str = Query(..., description="Path du groupe GitLab"),
-        created_after: str = Query(..., description="Date ISO pour filtrer les issues")
+    group_path: str = Query(..., description="Path du groupe GitLab"),
+    created_after: str = Query(..., description="Date ISO pour filtrer les issues"),
 ):
     try:
         data = await gitlab.fetch_time_spent_by_user(group_path, created_after)
@@ -31,12 +31,14 @@ async def time_spent(
 
 @app.get("/metrics/opened_closed_issues")
 async def opened_closed_issues(
-        group_path: str = Query(..., description="Path du groupe GitLab"),
-        created_after: str = Query(..., description="Date ISO pour filtrer les issues"),
-        created_before: str = Query(..., description="Date ISO pour filtrer les issues")
+    group_path: str = Query(..., description="Path du groupe GitLab"),
+    created_after: str = Query(..., description="Date ISO pour filtrer les issues"),
+    created_before: str = Query(..., description="Date ISO pour filtrer les issues"),
 ):
     try:
-        data = await gitlab.fetch_opened_closed_tasks(group_path, created_after, created_before)
+        data = await gitlab.fetch_opened_closed_tasks(
+            group_path, created_after, created_before
+        )
         return {"opened_closed_tasks": data}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -44,9 +46,9 @@ async def opened_closed_issues(
 
 @app.get("/metrics/burndown")
 async def burndown(
-        group_path: str = Query(..., description="Path du groupe GitLab"),
-        created_after: str = Query(..., description="Date ISO pour filtrer les issues"),
-        created_before: str = Query(..., description="Date ISO pour filtrer les issues")
+    group_path: str = Query(..., description="Path du groupe GitLab"),
+    created_after: str = Query(..., description="Date ISO pour filtrer les issues"),
+    created_before: str = Query(..., description="Date ISO pour filtrer les issues"),
 ):
     try:
         data = await gitlab.burndown_chart(group_path, created_after, created_before)
@@ -57,9 +59,9 @@ async def burndown(
 
 @app.get("/metrics/resolve_time")
 async def resolve_time(
-        group_path: str = Query(..., description="Path du groupe GitLab"),
-        created_after: str = Query(..., description="Date ISO pour filtrer les issues"),
-        created_before: str = Query(..., description="Date ISO pour filtrer les issues")
+    group_path: str = Query(..., description="Path du groupe GitLab"),
+    created_after: str = Query(..., description="Date ISO pour filtrer les issues"),
+    created_before: str = Query(..., description="Date ISO pour filtrer les issues"),
 ):
     try:
         data = await gitlab.resolve_time(group_path, created_after, created_before)
@@ -70,8 +72,8 @@ async def resolve_time(
 
 @app.get("/metrics/time_per_wp")
 async def time_per_wp(
-        group_path: str = Query(..., description="Path du groupe GitLab"),
-        created_after: str = Query(..., description="Date ISO pour filtrer les issues"),
+    group_path: str = Query(..., description="Path du groupe GitLab"),
+    created_after: str = Query(..., description="Date ISO pour filtrer les issues"),
 ):
     try:
         data = await gitlab.temps_passe_par_wp(group_path, created_after)
@@ -82,9 +84,9 @@ async def time_per_wp(
 
 @app.get("/metrics/resolve_time_mean")
 async def resolve_time_mean(
-        group_path: str = Query(..., description="Path du groupe GitLab"),
-        created_after: str = Query(..., description="Date ISO pour filtrer les issues"),
-        created_before: str = Query(..., description="Date ISO pour filtrer les issues")
+    group_path: str = Query(..., description="Path du groupe GitLab"),
+    created_after: str = Query(..., description="Date ISO pour filtrer les issues"),
+    created_before: str = Query(..., description="Date ISO pour filtrer les issues"),
 ):
     try:
         data = await gitlab.resolve_time_mean(group_path, created_after, created_before)
@@ -95,45 +97,47 @@ async def resolve_time_mean(
 
 @app.get("/kimai/hours")
 async def kimai_hours(
-        created_after: str = Query(..., example="2023-10-01T00:00:00"),
-        created_before: str = Query(..., example="2023-10-31T23:59:59")
+    created_after: str = Query(..., example="2023-10-01T00:00:00"),
+    created_before: str = Query(..., example="2023-10-31T23:59:59"),
 ):
     try:
 
-        clean_from = created_after.replace('Z', '')
-        clean_to = created_before.replace('Z', '')
+        clean_from = created_after.replace("Z", "")
+        clean_to = created_before.replace("Z", "")
         data = kimai.get_all_users_hours(clean_from, clean_to)
         return {"kimai_hours": data}
     except Exception as e:
         print(f"ERREUR FINALE: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.get("/kimai/detailed_hours")
 async def kimai_hours(
-        created_after: str = Query(..., example="2023-10-01T00:00:00"),
-        created_before: str = Query(..., example="2023-10-31T23:59:59")
+    created_after: str = Query(..., example="2023-10-01T00:00:00"),
+    created_before: str = Query(..., example="2023-10-31T23:59:59"),
 ):
     try:
 
-        clean_from = created_after.replace('Z', '')
-        clean_to = created_before.replace('Z', '')
+        clean_from = created_after.replace("Z", "")
+        clean_to = created_before.replace("Z", "")
         data = kimai.get_all_users_hours_by_activity(clean_from, clean_to)
         return {"kimai_hours": data}
     except Exception as e:
         print(f"ERREUR FINALE: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.get("/kimai/detailed_hours")
 async def kimai_hours(
-        created_after: str = Query(..., example="2023-10-01T00:00:00"),
-        created_before: str = Query(..., example="2023-10-31T23:59:59"),
-        user_id: int = Query(..., example="1")
+    created_after: str = Query(..., example="2023-10-01T00:00:00"),
+    created_before: str = Query(..., example="2023-10-31T23:59:59"),
+    user_id: int = Query(..., example="1"),
 ):
     try:
 
-        clean_from = created_after.replace('Z', '')
-        clean_to = created_before.replace('Z', '')
-        data = kimai.get_user_hours_by_activity(clean_from, clean_to,user_id)
+        clean_from = created_after.replace("Z", "")
+        clean_to = created_before.replace("Z", "")
+        data = kimai.get_user_hours_by_activity(clean_from, clean_to, user_id)
         return {"kimai_hours": data}
     except Exception as e:
         print(f"ERREUR FINALE: {str(e)}")
@@ -160,9 +164,9 @@ async def kimai_last_week():
 
 @app.get("/metrics/burnup")
 async def burnup(
-        group_path: str = Query(..., description="Path du groupe GitLab"),
-        created_after: str = Query(..., description="Date ISO pour filtrer les issues"),
-        created_before: str = Query(..., description="Date ISO pour filtrer les issues")
+    group_path: str = Query(..., description="Path du groupe GitLab"),
+    created_after: str = Query(..., description="Date ISO pour filtrer les issues"),
+    created_before: str = Query(..., description="Date ISO pour filtrer les issues"),
 ):
     try:
         data = await gitlab.fetch_burnup_data(group_path, created_after, created_before)
@@ -173,13 +177,14 @@ async def burnup(
 
 @app.get("/metrics/summary")
 async def summary(
-        group_path: str = Query(..., description="Path du groupe GitLab"),
-        created_after: str = Query(..., description="Date ISO pour filtrer les issues"),
-        created_before: str = Query(..., description="Date ISO pour filtrer les issues")
-
+    group_path: str = Query(..., description="Path du groupe GitLab"),
+    created_after: str = Query(..., description="Date ISO pour filtrer les issues"),
+    created_before: str = Query(..., description="Date ISO pour filtrer les issues"),
 ):
     try:
-        data = await gitlab.fetch_issues_summary(group_path, created_after, created_before)
+        data = await gitlab.fetch_issues_summary(
+            group_path, created_after, created_before
+        )
         return {"summary": data}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -187,12 +192,14 @@ async def summary(
 
 @app.get("/metrics/issues_count_by_user")
 async def issues_count_by_user(
-        group_path: str = Query(..., description="Path du groupe GitLab"),
-        created_after: str = Query(..., description="Date ISO pour filtrer les issues"),
-        created_before: str = Query(..., description="Date ISO pour filtrer les issues")
+    group_path: str = Query(..., description="Path du groupe GitLab"),
+    created_after: str = Query(..., description="Date ISO pour filtrer les issues"),
+    created_before: str = Query(..., description="Date ISO pour filtrer les issues"),
 ):
     try:
-        data = await gitlab.fetch_open_issues_count_by_user(group_path, created_after, created_before)
+        data = await gitlab.fetch_open_issues_count_by_user(
+            group_path, created_after, created_before
+        )
         return {"issues_count_by_user": data}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -207,45 +214,55 @@ async def get_screenshot():
         return await screenshot_issue_board()
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur lors de la capture du screenshot : {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Erreur lors de la capture du screenshot : {e}"
+        )
 
 
 @app.get("/gitlab/late_summary")
 async def get_late_summary(
-        group_path: str = Query(..., description="Path du groupe GitLab"),
-        created_after: str = Query(..., description="Date ISO pour filtrer les issues"),
-        created_before: str = Query(..., description="Date ISO pour filtrer les issues")
+    group_path: str = Query(..., description="Path du groupe GitLab"),
+    created_after: str = Query(..., description="Date ISO pour filtrer les issues"),
+    created_before: str = Query(..., description="Date ISO pour filtrer les issues"),
 ):
     try:
-        return await gitlab.fetch_late_issues_summary(group_path, created_after, created_before)
+        return await gitlab.fetch_late_issues_summary(
+            group_path, created_after, created_before
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/gitlab/crah")
 async def get_crah(
-        group_path: str = Query(..., description="Path du groupe GitLab"),
-        created_after: str = Query(..., description="Date ISO pour filtrer les issues"),
-        created_before: str = Query(..., description="Date ISO pour filtrer les issues")
+    group_path: str = Query(..., description="Path du groupe GitLab"),
+    created_after: str = Query(..., description="Date ISO pour filtrer les issues"),
+    created_before: str = Query(..., description="Date ISO pour filtrer les issues"),
 ):
 
     try:
-        return await gitlab.weekly_activity_report(group_path, created_after, created_before)
+        return await gitlab.weekly_activity_report(
+            group_path, created_after, created_before
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/gitlab/crah_by_user")
 async def get_crah(
-        group_path: str = Query(..., description="Path du groupe GitLab"),
-        created_after: str = Query(..., description="Date ISO pour filtrer les issues"),
-        created_before: str = Query(..., description="Date ISO pour filtrer les issues"),
-        username: str = Query(..., description="Nom d'utilisateur GitLab")
+    group_path: str = Query(..., description="Path du groupe GitLab"),
+    created_after: str = Query(..., description="Date ISO pour filtrer les issues"),
+    created_before: str = Query(..., description="Date ISO pour filtrer les issues"),
+    username: str = Query(..., description="Nom d'utilisateur GitLab"),
 ):
 
     try:
-        return await gitlab.weekly_activity_report_by_user(group_path, created_after, created_before,username)
+        return await gitlab.weekly_activity_report_by_user(
+            group_path, created_after, created_before, username
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/calendar/full")
 async def get_cal():

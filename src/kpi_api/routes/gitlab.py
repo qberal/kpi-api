@@ -41,7 +41,9 @@ async def fetch_time_spent_by_user(group_path: str, created_after: str) -> dict:
     """
 
     variables = {"groupPath": group_path, "createdAfter": created_after}
-    issues = await fetch_gitlab_paginated_data(query, variables, key_path=["data", "group", "issues"])
+    issues = await fetch_gitlab_paginated_data(
+        query, variables, key_path=["data", "group", "issues"]
+    )
 
     # Agréger le temps par utilisateur
     time_by_user = defaultdict(int)
@@ -54,10 +56,7 @@ async def fetch_time_spent_by_user(group_path: str, created_after: str) -> dict:
 
     res = []
     for user in time_by_user:
-        res.append({
-            "user": user,
-            "time": time_by_user[user] / 3600
-        })
+        res.append({"user": user, "time": time_by_user[user] / 3600})
     return res
 
 
@@ -90,11 +89,13 @@ async def fetch_opened_closed_tasks(group_path, created_after, created_before) -
     variables = {
         "groupPath": group_path,
         "createdAfter": created_after,
-        "createdBefore": created_before
+        "createdBefore": created_before,
     }
 
     # Récupération des données paginées
-    issues = await fetch_gitlab_paginated_data(query, variables, key_path=["data", "group", "issues"])
+    issues = await fetch_gitlab_paginated_data(
+        query, variables, key_path=["data", "group", "issues"]
+    )
 
     # Calculer le nombre d'issues ouvertes et fermées par jour
     opened_by_day = defaultdict(int)
@@ -117,11 +118,13 @@ async def fetch_opened_closed_tasks(group_path, created_after, created_before) -
     res = []
 
     for day in opened_by_day:
-        res.append({
-            "day": day,
-            "opened": opened_by_day[day],
-            "closed": closed_by_day.get(day, 0)
-        })
+        res.append(
+            {
+                "day": day,
+                "opened": opened_by_day[day],
+                "closed": closed_by_day.get(day, 0),
+            }
+        )
     return res
 
     # return {"opened_by_day": opened_by_day, "closed_by_day": closed_by_day}
@@ -156,11 +159,13 @@ async def burndown_chart(group_path, created_after, created_before) -> dict:
     variables = {
         "groupPath": group_path,
         "createdAfter": created_after,
-        "createdBefore": created_before
+        "createdBefore": created_before,
     }
 
     # Récupération des données paginées
-    issues = await fetch_gitlab_paginated_data(query, variables, key_path=["data", "group", "issues"])
+    issues = await fetch_gitlab_paginated_data(
+        query, variables, key_path=["data", "group", "issues"]
+    )
 
     # Calculer le nombre d'issues ouvertes et fermées par jour
     opened_by_day = defaultdict(int)
@@ -195,17 +200,22 @@ async def burndown_chart(group_path, created_after, created_before) -> dict:
         current_date += timedelta(days=1)
 
     # Ligne idéale de burndown (doit commencer à remaining_by_day[0], être linéaire et atteindre 0 à la fin)
-    ideal_burndown = [remaining_by_day[0] - i * (remaining_by_day[0] / (len(days) - 1)) for i in range(len(days))]
+    ideal_burndown = [
+        remaining_by_day[0] - i * (remaining_by_day[0] / (len(days) - 1))
+        for i in range(len(days))
+    ]
     closed_by_day = [closed_by_day.get(day, 0) for day in days]
 
     res = []
     for i in range(len(days)):
-        res.append({
-            "day": days[i],
-            "remaining": remaining_by_day[i],
-            "ideal": ideal_burndown[i],
-            "done": closed_by_day[i]
-        })
+        res.append(
+            {
+                "day": days[i],
+                "remaining": remaining_by_day[i],
+                "ideal": ideal_burndown[i],
+                "done": closed_by_day[i],
+            }
+        )
 
     print(res)
     return res
@@ -245,23 +255,25 @@ async def resolve_time(group_path: str, created_after: str, created_before) -> d
     variables = {
         "groupPath": group_path,
         "closedAfter": created_after,
-        "closedBefore": created_before
+        "closedBefore": created_before,
     }
 
     # Récupération des données
-    closed_issues = await fetch_gitlab_paginated_data(resolution_query, variables, key_path=["data", "group", "issues"])
+    closed_issues = await fetch_gitlab_paginated_data(
+        resolution_query, variables, key_path=["data", "group", "issues"]
+    )
 
     # Calcul des délais de résolution
     resolution_times = []
 
     for issue in closed_issues:
-        if not issue.get('closedAt') or not issue.get('createdAt'):
+        if not issue.get("closedAt") or not issue.get("createdAt"):
             continue
 
         # Conversion des dates en format datetime
         try:
-            created = datetime.fromisoformat(issue['createdAt'].replace('Z', '+00:00'))
-            closed = datetime.fromisoformat(issue['closedAt'].replace('Z', '+00:00'))
+            created = datetime.fromisoformat(issue["createdAt"].replace("Z", "+00:00"))
+            closed = datetime.fromisoformat(issue["closedAt"].replace("Z", "+00:00"))
         except ValueError:
             continue
 
@@ -274,14 +286,14 @@ async def resolve_time(group_path: str, created_after: str, created_before) -> d
 
     res = []
     for i in range(len(resolution_times)):
-        res.append({
-            "time": resolution_times[i]
-        })
+        res.append({"time": resolution_times[i]})
 
     return res
 
 
-async def resolve_time_mean(group_path: str, created_after: str, created_before) -> dict:
+async def resolve_time_mean(
+    group_path: str, created_after: str, created_before
+) -> dict:
     """
     Récupère et calcule le temps de résolution moyen des issues à partir de l'API GitLab.
     :param group_path:
@@ -315,23 +327,25 @@ async def resolve_time_mean(group_path: str, created_after: str, created_before)
     variables = {
         "groupPath": group_path,
         "closedAfter": created_after,
-        "closedBefore": created_before
+        "closedBefore": created_before,
     }
 
     # Récupération des données
-    closed_issues = await fetch_gitlab_paginated_data(resolution_query, variables, key_path=["data", "group", "issues"])
+    closed_issues = await fetch_gitlab_paginated_data(
+        resolution_query, variables, key_path=["data", "group", "issues"]
+    )
 
     # Calcul des délais de résolution
     resolution_times = []
 
     for issue in closed_issues:
-        if not issue.get('closedAt') or not issue.get('createdAt'):
+        if not issue.get("closedAt") or not issue.get("createdAt"):
             continue
 
         # Conversion des dates en format datetime
         try:
-            created = datetime.fromisoformat(issue['createdAt'].replace('Z', '+00:00'))
-            closed = datetime.fromisoformat(issue['closedAt'].replace('Z', '+00:00'))
+            created = datetime.fromisoformat(issue["createdAt"].replace("Z", "+00:00"))
+            closed = datetime.fromisoformat(issue["closedAt"].replace("Z", "+00:00"))
         except ValueError:
             continue
 
@@ -378,13 +392,12 @@ async def temps_passe_par_wp(group_path: str, created_after: str) -> dict:
     """
 
     # Variables pour la requête
-    variables = {
-        "groupPath": group_path,
-        "createdAfter": created_after
-    }
+    variables = {"groupPath": group_path, "createdAfter": created_after}
 
     # Récupération des données
-    issues = await fetch_gitlab_paginated_data(query, variables, key_path=["data", "group", "issues"])
+    issues = await fetch_gitlab_paginated_data(
+        query, variables, key_path=["data", "group", "issues"]
+    )
 
     # Calculer le temps par work package
     time_by_wp = defaultdict(int)
@@ -392,7 +405,9 @@ async def temps_passe_par_wp(group_path: str, created_after: str) -> dict:
     for issue in issues:
         # Récupérer les labels de l'issue
         labels = issue.get("labels", {}).get("nodes", [])
-        wp_labels = [label["title"] for label in labels if label["title"].startswith("WP")]
+        wp_labels = [
+            label["title"] for label in labels if label["title"].startswith("WP")
+        ]
 
         # Ajouter le temps passé pour chaque WP
         for timelog in issue.get("timelogs", {}).get("nodes", []):
@@ -404,14 +419,13 @@ async def temps_passe_par_wp(group_path: str, created_after: str) -> dict:
     time_by_wp_hours = {wp: time / 3600 for wp, time in time_by_wp.items()}
 
     # enlever WP:: de chaque wp (oneliner)
-    time_by_wp_hours = {wp.replace("WP::", ""): time for wp, time in time_by_wp_hours.items()}
+    time_by_wp_hours = {
+        wp.replace("WP::", ""): time for wp, time in time_by_wp_hours.items()
+    }
 
     res = []
     for wp in time_by_wp_hours:
-        res.append({
-            "wp": wp,
-            "time": time_by_wp_hours[wp]
-        })
+        res.append({"wp": wp, "time": time_by_wp_hours[wp]})
 
     return res
 
@@ -434,8 +448,14 @@ async def fetch_burnup_data(group_path: str, start_date: str, end_date: str) -> 
     """
 
     # Variables pour l'API
-    variables = {"groupPath": group_path, "createdAfter": start_date, "createdBefore": end_date}
-    issues = await fetch_gitlab_paginated_data(query, variables, key_path=["data", "group", "issues"])
+    variables = {
+        "groupPath": group_path,
+        "createdAfter": start_date,
+        "createdBefore": end_date,
+    }
+    issues = await fetch_gitlab_paginated_data(
+        query, variables, key_path=["data", "group", "issues"]
+    )
 
     # Organiser les issues par jour
     created_issues = defaultdict(int)
@@ -460,17 +480,21 @@ async def fetch_burnup_data(group_path: str, start_date: str, end_date: str) -> 
         day_str = current_date.strftime("%Y-%m-%d")
         total_issues += created_issues[day_str]
         issues_closed += closed_issues[day_str]
-        burnup_data.append({
-            "day": day_str,
-            "total_issues": total_issues,
-            "issues_closed": issues_closed
-        })
+        burnup_data.append(
+            {
+                "day": day_str,
+                "total_issues": total_issues,
+                "issues_closed": issues_closed,
+            }
+        )
         current_date += timedelta(days=1)
 
     return burnup_data
 
 
-async def fetch_issues_summary(group_path: str, created_after: str, created_before: str) -> dict:
+async def fetch_issues_summary(
+    group_path: str, created_after: str, created_before: str
+) -> dict:
     """
     Récupère un résumé des issues par statut : Completed, Incomplete, et Unstarted,
     basé sur les tags spécifiques et dans une plage de dates donnée.
@@ -503,7 +527,9 @@ async def fetch_issues_summary(group_path: str, created_after: str, created_befo
         "createdAfter": created_after,
         "createdBefore": created_before,
     }
-    issues = await fetch_gitlab_paginated_data(query, variables, key_path=["data", "group", "issues"])
+    issues = await fetch_gitlab_paginated_data(
+        query, variables, key_path=["data", "group", "issues"]
+    )
 
     # Compter les issues par statut
     completed = 0
@@ -525,11 +551,13 @@ async def fetch_issues_summary(group_path: str, created_after: str, created_befo
     return {
         "completed": completed / total * 100,
         "incomplete": incomplete / total * 100,
-        "unstarted": unstarted / total * 100
+        "unstarted": unstarted / total * 100,
     }
 
 
-async def fetch_open_issues_count_by_user(group_path: str, created_after: str, created_before: str) -> dict:
+async def fetch_open_issues_count_by_user(
+    group_path: str, created_after: str, created_before: str
+) -> dict:
     """
     Récupère le nombre total d'issues ouvertes par utilisateur.
     """
@@ -558,13 +586,17 @@ async def fetch_open_issues_count_by_user(group_path: str, created_after: str, c
         "createdAfter": created_after,
         "createdBefore": created_before,
     }
-    issues = await fetch_gitlab_paginated_data(query, variables, key_path=["data", "group", "issues"])
+    issues = await fetch_gitlab_paginated_data(
+        query, variables, key_path=["data", "group", "issues"]
+    )
 
     # Initialiser les données par utilisateur
     issues_by_user = defaultdict(int)
 
     for issue in issues:
-        assignees = [assignee["name"] for assignee in issue.get("assignees", {}).get("nodes", [])]
+        assignees = [
+            assignee["name"] for assignee in issue.get("assignees", {}).get("nodes", [])
+        ]
 
         # Ajouter au compte des utilisateurs assignés
         for user in assignees:
@@ -573,7 +605,9 @@ async def fetch_open_issues_count_by_user(group_path: str, created_after: str, c
     return [{"user": user, "count": count} for user, count in issues_by_user.items()]
 
 
-async def fetch_late_issues_summary(group_path: str, created_after: str, created_before: str) -> dict:
+async def fetch_late_issues_summary(
+    group_path: str, created_after: str, created_before: str
+) -> dict:
     """
     Récupère le nombre total d'issues et celles en retard
     dans une plage de dates donnée.
@@ -601,7 +635,9 @@ async def fetch_late_issues_summary(group_path: str, created_after: str, created
         "createdAfter": created_after,
         "createdBefore": created_before,
     }
-    issues = await fetch_gitlab_paginated_data(query, variables, key_path=["data", "group", "issues"])
+    issues = await fetch_gitlab_paginated_data(
+        query, variables, key_path=["data", "group", "issues"]
+    )
 
     total = len(issues)
     late = 0
@@ -633,10 +669,7 @@ async def fetch_late_issues_summary(group_path: str, created_after: str, created
                 if due_date < closed_at:
                     late += 1
 
-    return {
-        "late": late / total * 100,
-        "not late": (total - late) / total * 100
-    }
+    return {"late": late / total * 100, "not late": (total - late) / total * 100}
 
 
 def format_duration(seconds: int) -> str:
@@ -648,7 +681,9 @@ def format_duration(seconds: int) -> str:
     return f"{hours}h{minutes:02d}min"
 
 
-async def weekly_activity_report(group_path: str, created_after: str, created_before: str) -> dict:
+async def weekly_activity_report(
+    group_path: str, created_after: str, created_before: str
+) -> dict:
     """
     Génère un compte rendu d'activité hebdomadaire, regroupé par personne.
 
@@ -702,11 +737,13 @@ async def weekly_activity_report(group_path: str, created_after: str, created_be
     variables = {
         "groupPath": group_path,
         "createdAfter": created_after,
-        "createdBefore": created_before
+        "createdBefore": created_before,
     }
 
     # Récupération paginée des issues via la fonction utilitaire
-    issues = await fetch_gitlab_paginated_data(query, variables, key_path=["data", "group", "issues"])
+    issues = await fetch_gitlab_paginated_data(
+        query, variables, key_path=["data", "group", "issues"]
+    )
 
     # Dictionnaire pour regrouper les informations par utilisateur
     report_by_user = defaultdict(list)
@@ -744,19 +781,22 @@ async def weekly_activity_report(group_path: str, created_after: str, created_be
         # Pour chaque utilisateur ayant logué du temps (> 0), on ajoute une entrée dans le rapport
         for user, user_time_spent in user_time.items():
             if user_time_spent > 0:
-                report_by_user[user].append({
-                    "iid": issue_iid,
-                    "nom issue": issue_title,
-                    "WP": wp,
-                    "temps passé total": format_duration(user_time_spent),
-                    "temps restant estimé": format_duration(remaining)
-                })
+                report_by_user[user].append(
+                    {
+                        "iid": issue_iid,
+                        "nom issue": issue_title,
+                        "WP": wp,
+                        "temps passé total": format_duration(user_time_spent),
+                        "temps restant estimé": format_duration(remaining),
+                    }
+                )
 
     return dict(report_by_user)
 
 
-async def weekly_activity_report_by_user_old(group_path: str, week_start: str, week_end: str,
-                                             target_username: str) -> dict:
+async def weekly_activity_report_by_user_old(
+    group_path: str, week_start: str, week_end: str, target_username: str
+) -> dict:
     """
     Génère un compte rendu d'activité hebdomadaire pour un utilisateur spécifique en se basant
     sur la date de log des timelogs (plutôt que sur la date de création des issues).
@@ -807,7 +847,9 @@ async def weekly_activity_report_by_user_old(group_path: str, week_start: str, w
     variables = {"groupPath": group_path}
 
     # Récupération paginée des issues
-    issues = await fetch_gitlab_paginated_data(query, variables, key_path=["data", "group", "issues"])
+    issues = await fetch_gitlab_paginated_data(
+        query, variables, key_path=["data", "group", "issues"]
+    )
 
     # Convertir les bornes de la semaine en objets datetime
     week_start_dt = datetime.fromisoformat(week_start)
@@ -857,17 +899,17 @@ async def weekly_activity_report_by_user_old(group_path: str, week_start: str, w
             if remaining < 0:
                 remaining = 0
 
-            report_for_user.append({
-                "iid": issue_iid,
-                "nom issue": issue_title,
-                "WP": wp,
-                "temps passé total": format_duration(user_time_spent),
-                "temps restant estimé": format_duration(remaining)
-            })
+            report_for_user.append(
+                {
+                    "iid": issue_iid,
+                    "nom issue": issue_title,
+                    "WP": wp,
+                    "temps passé total": format_duration(user_time_spent),
+                    "temps restant estimé": format_duration(remaining),
+                }
+            )
 
     return {target_username: report_for_user}
-
-
 
 
 GITLAB_BASE_URL = "https://gitlab.insa-rouen.fr/api/v4"
@@ -900,14 +942,15 @@ async def get_parent_issue(project_id: int, parent_iid: int) -> dict:
                 return {
                     "iid": parent_issue.get("iid"),
                     "title": parent_issue.get("title"),
-                    "wp": parent_wp
+                    "wp": parent_wp,
                 }
 
     return {}
 
 
-
-async def weekly_activity_report_by_user(group_path: str, week_start: str, week_end: str, target_username: str) -> dict:
+async def weekly_activity_report_by_user(
+    group_path: str, week_start: str, week_end: str, target_username: str
+) -> dict:
     """
     Génère un rapport d'activité hebdomadaire pour un utilisateur en se basant sur la date du timelog (spentAt)
     plutôt que sur la date de création des issues.
@@ -968,12 +1011,12 @@ async def weekly_activity_report_by_user(group_path: str, week_start: str, week_
       }
     }
     """
-    variables = {
-        "groupPath": group_path
-    }
+    variables = {"groupPath": group_path}
 
     # Récupération paginée des issues
-    issues = await fetch_gitlab_paginated_data(query, variables, key_path=["data", "group", "issues"])
+    issues = await fetch_gitlab_paginated_data(
+        query, variables, key_path=["data", "group", "issues"]
+    )
 
     # Conversion des bornes de la période en objets datetime
     week_start_dt = datetime.fromisoformat(week_start)
@@ -1033,7 +1076,9 @@ async def weekly_activity_report_by_user(group_path: str, week_start: str, week_
                         if match:
                             parent_iid = match.group(1)
                             # Récupération de l'issue parente via une requête GraphQL auxiliaire
-                            parent_issue = await get_parent_issue(project_id, parent_iid)
+                            parent_issue = await get_parent_issue(
+                                project_id, parent_iid
+                            )
                             if parent_issue:
                                 parent_title = parent_issue.get("title")
                                 parent_wp = parent_issue.get("wp")
@@ -1051,13 +1096,14 @@ async def weekly_activity_report_by_user(group_path: str, week_start: str, week_
             if remaining < 0:
                 remaining = 0
 
-            report_for_user.append({
-                "iid": display_iid,
-                "nom issue": display_title,
-                "WP": wp,
-                "temps passé total": format_duration(user_time_spent),
-                "temps restant estimé": format_duration(remaining)
-            })
+            report_for_user.append(
+                {
+                    "iid": display_iid,
+                    "nom issue": display_title,
+                    "WP": wp,
+                    "temps passé total": format_duration(user_time_spent),
+                    "temps restant estimé": format_duration(remaining),
+                }
+            )
 
     return {target_username: report_for_user}
-
