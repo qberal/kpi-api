@@ -72,7 +72,7 @@ async def fetch_opened_closed_tasks(group_path, created_after, created_before) -
     query = """
     query issuesByDate($groupPath: ID!, $createdAfter: Time, $createdBefore: Time, $after: String) {
       group(fullPath: $groupPath) {
-        issues(createdAfter: $createdAfter, createdBefore: $createdBefore, first: 100, after: $after) {
+        issues(createdAfter: $createdAfter, createdBefore: $created_before, first: 100, after: $after) {
           nodes {
             createdAt
             closedAt
@@ -321,9 +321,7 @@ async def resolve_time_mean(
           }
         }
       }
-    }
     """
-
     variables = {
         "groupPath": group_path,
         "closedAfter": created_after,
@@ -578,9 +576,7 @@ async def fetch_open_issues_count_by_user(
           }
         }
       }
-    }
     """
-
     variables = {
         "groupPath": group_path,
         "createdAfter": created_after,
@@ -1009,7 +1005,6 @@ async def weekly_activity_report_by_user(
           }
         }
       }
-    }
     """
     variables = {"groupPath": group_path}
 
@@ -1107,3 +1102,185 @@ async def weekly_activity_report_by_user(
             )
 
     return {target_username: report_for_user}
+
+
+async def priority_burndown_chart(group_path, created_after, created_before) -> dict:
+    """
+    Récupère et calcule le nombre d'issues ouvertes et fermées par jour à partir de l'API GitLab,
+    en se basant uniquement sur les issues ayant un tag de priorité (Priorité::*).
+    
+    :param group_path: Path du groupe GitLab
+    :param created_after: Date ISO pour filtrer les issues
+    :param created_before: Date ISO pour filtrer les issues
+    :return: Données pour un burndown chart basé sur les priorités
+    """
+
+    query = """
+    query issuesByDateWithPriority($groupPath: ID!, $createdAfter: Time, $createdBefore: Time, $after: String) {
+      group(fullPath: $groupPath) {
+        issues(createdAfter: $createdAfter, createdBefore: $createdBefore, first: 100, after: $after) {
+          nodes {
+            createdAt
+            closedAt
+            labels(first: 10) {
+              nodes {
+                title
+              }
+            }
+          }
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
+        }
+      }
+    """
+
+    variables = {
+        "groupPath": group_path,
+        "createdAfter": created_after,
+        "createdBefore": created_before,
+    }
+
+    # Récupération des données paginées
+    issues = await fetch_gitlab_paginated_data(
+        query, variables, key_path=["data", "group", "issues"]
+    )
+
+    # Filtrage des issues avec un tag de priorité
+    priority_issues = []
+    for issue in issues:
+        labels = issue.get("labels", {}).get("nodes", [])
+        has_priority = any(label.get("title", "").startswith("Priorité::") for label in labels)
+        if has_priority:
+            priority_issues.append(issue)
+
+    # Calculer le nombre d'issues ouvertes et fermées par jour
+    opened_by_day = defaultdict(int)
+    closed_by_day = defaultdict(int)
+
+    for issue in priority_issues:
+        created_date = issue.get("createdAt")
+        closed_date = issue.get("closedAt")
+
+        if created_date:
+            created_day = created_date[:10]  # Extraire la date (YYYY-MM-DD)
+            opened_by_day[created_day] += 1
+
+        if closed_date:
+            closed_day = closed_date[:10]  # Extraire la date (YYYY-MM-DD)
+            closed_by_day[closed_day] += 1
+
+    # created before - created after sont en ISO
+    start_date = datetime.fromisoformat(created_after)
+    end_date = datetime.fromisoformat(created_before)
+    current_date = start_date
+    remaining_issues = 0
+    remaining_by_day = []
+    days = []
+
+    while current_date <= end_date:
+        day_str = current_date.strftime("%Y-%m-%d")
+        remaining_issues += opened_by_day.get(day_str, 0)
+        remaining_issues -= closed_by_day.get(day_str, 0)
+        remaining_by_day.append(remaining_issues)
+        days.append(day_str)
+        current_date += timedelta(days=1)
+
+    # Ligne idéale de burndown (doit commencer à remaining_by_day[0], être linéaire et atteindre 0 à la fin)
+    ideal_burndown = [
+        remaining_by_day[0] - i * (remaining_by_day[0] / (len(days) - 1))
+        for i in range(len(days))
+    ]
+    closed_by_day = [closed_by_day.get(day, 0) for day in days]
+
+    res = []
+    for i in range(len(days)):
+        res.append(
+            {
+                "day": days[i],
+                "remaining": remaining_by_day[i],
+                "ideal": ideal_burndown[i],
+                "done": closed_by_day[i],
+            }
+        )
+
+    return res
+
+
+async def fetch_anomalies_nc_by_level(
+    group_path: str, created_after: str, created_before: str
+) -> dict:
+    """
+    Récupère et calcule le nombre d'anomalies et de non-conformités par niveau de gravité.
+    
+    :param group_path: Chemin du groupe GitLab
+    :param created_after: Date ISO de début
+    :param created_before: Date ISO de fin
+    :return: Comptage des anomalies et non-conformités par niveau
+    """
+    query = """
+    query issuesWithAnomaliesAndNC($groupPath: ID!, $createdAfter: Time, $createdBefore: Time, $after: String) {
+      group(fullPath: $groupPath) {
+        issues(createdAfter: $createdAfter, createdBefore: $createdBefore, first: 100, after: $after) {
+          nodes {
+            labels(first: 20) {
+              nodes {
+                title
+              }
+            }
+          }
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
+        }
+      }
+    }
+    """
+
+    variables = {
+        "groupPath": group_path,
+        "createdAfter": created_after,
+        "createdBefore": created_before,
+    }
+
+    # Récupération des données paginées
+    issues = await fetch_gitlab_paginated_data(
+        query, variables, key_path=["data", "group", "issues"]
+    )
+
+    # Initialiser les compteurs
+    anomalies_by_level = defaultdict(int)
+    nc_by_level = defaultdict(int)
+
+    # Analyser les issues pour trouver les tags d'anomalies et de non-conformités
+    for issue in issues:
+        labels = issue.get("labels", {}).get("nodes", [])
+        
+        for label in labels:
+            label_title = label.get("title", "")
+            
+            # Traiter les anomalies
+            if label_title.startswith("Anomalie::"):
+                try:
+                    level = label_title.split("Anomalie::", 1)[1].strip()
+                    anomalies_by_level[level] += 1
+                except IndexError:
+                    anomalies_by_level["Non spécifié"] += 1
+            
+            # Traiter les non-conformités
+            if label_title.startswith("Non-conformité::"):
+                try:
+                    level = label_title.split("Non-conformité::", 1)[1].strip()
+                    nc_by_level[level] += 1
+                except IndexError:
+                    nc_by_level["Non spécifié"] += 1
+
+    # Préparer le résultat
+    result = {
+        "anomalies": [{"level": level, "count": count} for level, count in anomalies_by_level.items()],
+        "non_conformites": [{"level": level, "count": count} for level, count in nc_by_level.items()]
+    }
+
+    return result

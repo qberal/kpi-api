@@ -205,6 +205,19 @@ async def issues_count_by_user(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/metrics/priority_burndown")
+async def priority_burndown(
+    group_path: str = Query(..., description="Path du groupe GitLab"),
+    created_after: str = Query(..., description="Date ISO pour filtrer les issues"),
+    created_before: str = Query(..., description="Date ISO pour filtrer les issues"),
+):
+    try:
+        data = await gitlab.priority_burndown_chart(group_path, created_after, created_before)
+        return {"priority_burndown": data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/gitlab/screenshot")
 async def get_screenshot():
     """
@@ -285,5 +298,21 @@ async def get_cal_next_class():
 async def get_cal_next_pic_event():
     try:
         return nextcloud.get_next_pic_event()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/metrics/anomalies_nc")
+async def anomalies_nc(
+    group_path: str = Query(..., description="Path du groupe GitLab"),
+    created_after: str = Query(..., description="Date ISO pour filtrer les issues"),
+    created_before: str = Query(..., description="Date ISO pour filtrer les issues"),
+):
+    """
+    Endpoint qui renvoie le nombre d'anomalies et de non-conformités par niveau de gravité.
+    """
+    try:
+        data = await gitlab.fetch_anomalies_nc_by_level(group_path, created_after, created_before)
+        return {"anomalies_nc": data}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
